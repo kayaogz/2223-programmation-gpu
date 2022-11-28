@@ -24,8 +24,8 @@ __global__ void multiplyMatrixGPUByBlocks(float *dA, float *dB, float *dC, int n
   int i = blockIdx.x;
   int j = blockIdx.y;
   float c = 0.0;
-  for (int k = 0; k < n; k++) { c += dA[i * n + k] * dB[k + n * j]; }
-  dC[i * n + j] = c;
+  for (int k = 0; k < n; k++) { c += dA[i][k] * dB[k][j]; }
+  dC[i][j] = c;
 }
 
 
@@ -39,8 +39,8 @@ __global__ void multiplyMatrixGPUByBlocksThreads1D(float *dA, float *dB, float *
   int i = blockIdx.x;
   int j = threadIdx.x + blockIdx.y * blockDim.y;
   float c = 0.0;
-  for (int k = 0; k < n; k++) { c += dA[i * n + k] * dB[k + n * j]; }
-  dC[i * n + j] = c;
+  for (int k = 0; k < n; k++) { c += dA[i][k] * dB[k][j]; }
+  dC[i][j] = c;
 }
 
 
@@ -56,8 +56,8 @@ __global__ void multiplyMatrixGPUByBlocksThreads1DNonMultiple(float *dA, float *
   int j = threadIdx.x + blockIdx.y * blockDim.y;
   if (j < n) { 
     float c = 0.0;
-    for (int k = 0; k < n; k++) { c += dA[i * n + k] * dB[k + j * n]; }
-    dC[i * n + j] = c;
+    for (int k = 0; k < n; k++) { c += dA[i][k] * dB[k][j]; }
+    dC[i][j] = c;
   }
 }
 
@@ -74,8 +74,8 @@ __global__ void multiplyMatrixGPUByBlocksThreads2D(float *dA, float *dB, float *
   int i = threadIdx.y + blockIdx.x * blockDim.y;
   int j = threadIdx.x + blockIdx.y * blockDim.x;
   float c = 0.0;
-  for (int k = 0; k < n; k++) { c += dA[i * n + k] * dB[k + j * n]; }
-  dC[i * n + j] = c;
+  for (int k = 0; k < n; k++) { c += dA[i][k] * dB[k][j]; }
+  dC[i][j] = c;
 }
 
 
@@ -91,9 +91,35 @@ __global__ void multiplyMatrixGPUByBlocksThreads2DNonMultiple(float *dA, float *
   int j = threadIdx.x + blockIdx.y * blockDim.x;
   if (i < n && j < n) {
     float c = 0.0;
-    for (int k = 0; k < n; k++) { c += dA[i * n + k] * dB[k + j * n]; }
-    dC[i * n + j] = c;
+    for (int k = 0; k < n; k++) { c += dA[i][k] * dB[k][j]; }
+    dC[i][j] = c;
   }
+}
+
+
+// Use BSXY == blockDim.x == blockDim.y (square blocks) in this exercise.
+// Create one block for computing BSXY * BSXY elements of C, compute using BSXY * BSXY threads per block.
+// Each thread computes a single element of C.
+// Make it work when N is not divisible by BSXY.
+// To perform the multiplication, Operate on matrix tiles of size BSXY * BSXY of A and B using shared memory.
+// Accumulate on BSXY * BSXY registers for a tile of C. That is, in each step,
+// read a BSXY * BSXY tile of A and B on shared memory, multiply them and
+// accumulate on C on registers, then continue with the rest of the tiles
+//
+// Utiliser BSXY == blockDim.x == blockDim.y (blocs carres) dans cet exercice
+// Creer un bloc pour le calcul de BSXY * BSXY elements de C, calculer avec BSXY * BSXY threads par bloc.
+// Chaque thread calcule un element de C.
+// Faire marcher pour N n'est pas multiple de ni BSXY;
+// Operer par des tuiles de matrices de taille BSXY * BSXY en utilisant la shared memory.
+// Accumuler sur BSXY * BSXY registre pour une tuile de C. A savoir, a chaque
+// etape, recuperer une tuile de taille BSXY * BSXY de A et B, multiplier-les,
+// puis passer aux tuiles suivants
+__global__ void multiplyMatrixGPUByBlocksThreads2DNonMultipleSharedMemory(int n)
+{
+  // TODO / A FAIRE ...
+  __shared__ float shA[BSXY][BSXY];
+  __shared__ float shB[BSXY][BSXY];
+  float c = 0.0;
 }
 
 
@@ -147,11 +173,6 @@ int main(int argc, char **argv)
   // Allocate dA and dB, then copy the arrays A and B to the GPU
   // Allouer dA et dB, puis copier les tableaux A et B vers le GPU
   // TODO / A FAIRE ...
-  cudaMalloc(&dA, sizeof(dA[0]) * N * N);
-  cudaMalloc(&dB, sizeof(dB[0]) * N * N);
-  cudaMalloc(&dC, sizeof(dC[0]) * N * N);
-  cudaMemcpy(dA, A, N * N * sizeof(float), cudaMemcpyHostToDevice);
-  cudaMemcpy(dB, B, N * N * sizeof(float), cudaMemcpyHostToDevice);
 
 
   // Call each GPU kernel appropriately to multiply matrices A and B
@@ -162,60 +183,32 @@ int main(int argc, char **argv)
   {
     dim3 dimGrid;
     dim3 dimBlock;
-    dimGrid.x = N;
-    dimGrid.y = N;
-    dimGrid.z = 1;
-    // multiplyMatrixGPUByBlocks<<<dimGrid, 1>>>(N);
+    // multiplyMatrixGPUByBlocks<<<..., ...>>>(N);
   }
   {
     dim3 dimGrid;
     dim3 dimBlock;
-    dimGrid.x = N / 1024;
-    dimGrid.y = N;
-    dimGrid.z = 1;
-    dimBlock.x = 1024;
-    dimBlock.y = 1;
-    dimBlock.z = 1;
-    // multiplyMatrixGPUByBlocksThreads1D<<<dimGrid, dimBlock>>>(N);
+    // multiplyMatrixGPUByBlocksThreads1D<<<..., ...>>>(N);
   }
   { 
     dim3 dimGrid;
     dim3 dimBlock;
-    dimGrid.x = N / 1024;
-    dimGrid.y = N;
-    dimGrid.z = 1;
-    dimBlock.x = 1024;
-    dimBlock.y = 1;
-    dimBlock.z = 1;
-    // multiplyMatrixGPUByBlocksThreads1DNonMultiple<<<dimGrid, dimBlock>>>(N);
+    // multiplyMatrixGPUByBlocksThreads1DNonMultiple<<<..., ...>>>(N);
   }
   {
     dim3 dimGrid;
     dim3 dimBlock;
-    dimGrid.x = N / 32;
-    dimGrid.y = N / 32;
-    dimGrid.z = 1;
-    dimBlock.x = 32;
-    dimBlock.y = 32;
-    dimBlock.z = 1;
-    // multiplyMatrixGPUByBlocksThreads2D<<<dimGrid, dimBlock>>>(N);
+    // multiplyMatrixGPUByBlocksThreads2D<<<..., ...>>>(N);
   }
   {
     dim3 dimGrid;
     dim3 dimBlock;
-    dimGrid.x = N / 32;
-    dimGrid.y = N / 32;
-    dimGrid.z = 1;
-    dimBlock.x = 32;
-    dimBlock.y = 32;
-    dimBlock.z = 1;
-    // multiplyMatrixGPUByBlocksThreads2DNonMultiple<<<dimGrid, dimBlock>>>(N);
+    // multiplyMatrixGPUByBlocksThreads2DNonMultiple<<<..., ...>>>(N);
   }
 
   // Copy the array dC back to the CPU
   // Recopier le tableau dC vers le CPU
   // TODO / A FAIRE ...
-  cudaMemcpy(C, dC, N * N * sizeof(float), cudaMemcpyDeviceToHost);
 
   // Verify the results
   // Verifier les resultats
@@ -229,7 +222,6 @@ int main(int argc, char **argv)
   // Deallocate dA, dB, dC
   // Desallouer dA, dB, dC
   // TODO / A FAIRE ...
-  cudaFree(dA); cudaFree(dB); cudaFree(dC);
 
   return 0;
 }
