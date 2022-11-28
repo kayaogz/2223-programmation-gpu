@@ -24,8 +24,8 @@ __global__ void multiplyMatrixGPUByBlocks(float *dA, float *dB, float *dC, int n
   int i = blockIdx.x;
   int j = blockIdx.y;
   float c = 0.0;
-  for (int k = 0; k < n; k++) { c += dA[i][k] * dB[k][j]; }
-  dC[i][j] = c;
+  for (int k = 0; k < n; k++) { c += dA[i * n + k] * dB[k + n * j]; }
+  dC[i * n + j] = c;
 }
 
 
@@ -39,8 +39,8 @@ __global__ void multiplyMatrixGPUByBlocksThreads1D(float *dA, float *dB, float *
   int i = blockIdx.x;
   int j = threadIdx.x + blockIdx.y * blockDim.y;
   float c = 0.0;
-  for (int k = 0; k < n; k++) { c += dA[i][k] * dB[k][j]; }
-  dC[i][j] = c;
+  for (int k = 0; k < n; k++) { c += dA[i * n + k] * dB[k + n * j]; }
+  dC[i * n + j] = c;
 }
 
 
@@ -56,8 +56,8 @@ __global__ void multiplyMatrixGPUByBlocksThreads1DNonMultiple(float *dA, float *
   int j = threadIdx.x + blockIdx.y * blockDim.y;
   if (j < n) { 
     float c = 0.0;
-    for (int k = 0; k < n; k++) { c += dA[i][k] * dB[k][j]; }
-    dC[i][j] = c;
+    for (int k = 0; k < n; k++) { c += dA[i * n + k] * dB[k + j * n]; }
+    dC[i * n + j] = c;
   }
 }
 
@@ -74,8 +74,8 @@ __global__ void multiplyMatrixGPUByBlocksThreads2D(float *dA, float *dB, float *
   int i = threadIdx.y + blockIdx.x * blockDim.y;
   int j = threadIdx.x + blockIdx.y * blockDim.x;
   float c = 0.0;
-  for (int k = 0; k < n; k++) { c += dA[i][k] * dB[k][j]; }
-  dC[i][j] = c;
+  for (int k = 0; k < n; k++) { c += dA[i * n + k] * dB[k + j * n]; }
+  dC[i * n + j] = c;
 }
 
 
@@ -91,8 +91,8 @@ __global__ void multiplyMatrixGPUByBlocksThreads2DNonMultiple(float *dA, float *
   int j = threadIdx.x + blockIdx.y * blockDim.x;
   if (i < n && j < n) {
     float c = 0.0;
-    for (int k = 0; k < n; k++) { c += dA[i][k] * dB[k][j]; }
-    dC[i][j] = c;
+    for (int k = 0; k < n; k++) { c += dA[i * n + k] * dB[k + j * n]; }
+    dC[i * n + j] = c;
   }
 }
 
@@ -173,6 +173,11 @@ int main(int argc, char **argv)
   // Allocate dA and dB, then copy the arrays A and B to the GPU
   // Allouer dA et dB, puis copier les tableaux A et B vers le GPU
   // TODO / A FAIRE ...
+  cudaMalloc(&dA, sizeof(dA[0]) * N * N);
+  cudaMalloc(&dB, sizeof(dB[0]) * N * N);
+  cudaMalloc(&dC, sizeof(dC[0]) * N * N);
+  cudaMemcpy(dA, A, N * N * sizeof(float), cudaMemcpyHostToDevice);
+  cudaMemcpy(dB, B, N * N * sizeof(float), cudaMemcpyHostToDevice);
 
 
   // Call each GPU kernel appropriately to multiply matrices A and B
@@ -183,32 +188,60 @@ int main(int argc, char **argv)
   {
     dim3 dimGrid;
     dim3 dimBlock;
-    // multiplyMatrixGPUByBlocks<<<..., ...>>>(N);
+    dimGrid.x = N;
+    dimGrid.y = N;
+    dimGrid.z = 1;
+    // multiplyMatrixGPUByBlocks<<<dimGrid, 1>>>(N);
   }
   {
     dim3 dimGrid;
     dim3 dimBlock;
-    // multiplyMatrixGPUByBlocksThreads1D<<<..., ...>>>(N);
+    dimGrid.x = N / 1024;
+    dimGrid.y = N;
+    dimGrid.z = 1;
+    dimBlock.x = 1024;
+    dimBlock.y = 1;
+    dimBlock.z = 1;
+    // multiplyMatrixGPUByBlocksThreads1D<<<dimGrid, dimBlock>>>(N);
   }
   { 
     dim3 dimGrid;
     dim3 dimBlock;
-    // multiplyMatrixGPUByBlocksThreads1DNonMultiple<<<..., ...>>>(N);
+    dimGrid.x = N / 1024;
+    dimGrid.y = N;
+    dimGrid.z = 1;
+    dimBlock.x = 1024;
+    dimBlock.y = 1;
+    dimBlock.z = 1;
+    // multiplyMatrixGPUByBlocksThreads1DNonMultiple<<<dimGrid, dimBlock>>>(N);
   }
   {
     dim3 dimGrid;
     dim3 dimBlock;
-    // multiplyMatrixGPUByBlocksThreads2D<<<..., ...>>>(N);
+    dimGrid.x = N / 32;
+    dimGrid.y = N / 32;
+    dimGrid.z = 1;
+    dimBlock.x = 32;
+    dimBlock.y = 32;
+    dimBlock.z = 1;
+    // multiplyMatrixGPUByBlocksThreads2D<<<dimGrid, dimBlock>>>(N);
   }
   {
     dim3 dimGrid;
     dim3 dimBlock;
-    // multiplyMatrixGPUByBlocksThreads2DNonMultiple<<<..., ...>>>(N);
+    dimGrid.x = N / 32;
+    dimGrid.y = N / 32;
+    dimGrid.z = 1;
+    dimBlock.x = 32;
+    dimBlock.y = 32;
+    dimBlock.z = 1;
+    // multiplyMatrixGPUByBlocksThreads2DNonMultiple<<<dimGrid, dimBlock>>>(N);
   }
 
   // Copy the array dC back to the CPU
   // Recopier le tableau dC vers le CPU
   // TODO / A FAIRE ...
+  cudaMemcpy(C, dC, N * N * sizeof(float), cudaMemcpyDeviceToHost);
 
   // Verify the results
   // Verifier les resultats
@@ -222,6 +255,7 @@ int main(int argc, char **argv)
   // Deallocate dA, dB, dC
   // Desallouer dA, dB, dC
   // TODO / A FAIRE ...
+  cudaFree(dA); cudaFree(dB); cudaFree(dC);
 
   return 0;
 }
