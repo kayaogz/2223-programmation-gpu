@@ -2,7 +2,7 @@
 #include <iostream>
 #include "cuda.h"  
 
-#define N 512
+#define N 1024
 #define BSXY 32
 
 // A and C are stored by rows, i.e., A(i, j) = A[i * N + j], C(i, j) = C[i * N + j]
@@ -37,7 +37,7 @@ __global__ void multiplyMatrixGPUByBlocksThreads1D(float *dA, float *dB, float *
 {
   // TODO / A FAIRE ...
   int i = blockIdx.x;
-  int j = threadIdx.x + blockIdx.y * blockDim.y;
+  int j = threadIdx.x + blockIdx.y * blockDim.x;
   float c = 0.0;
   for (int k = 0; k < n; k++) { c += dA[i * n + k] * dB[k + n * j]; }
   dC[i * n + j] = c;
@@ -53,7 +53,7 @@ __global__ void multiplyMatrixGPUByBlocksThreads1DNonMultiple(float *dA, float *
 {
   // TODO / A FAIRE ...
   int i = blockIdx.x;
-  int j = threadIdx.x + blockIdx.y * blockDim.y;
+  int j = threadIdx.x + blockIdx.y * blockDim.x;
   if (j < n) { 
     float c = 0.0;
     for (int k = 0; k < n; k++) { c += dA[i * n + k] * dB[k + j * n]; }
@@ -196,45 +196,45 @@ int main(int argc, char **argv)
   {
     dim3 dimGrid;
     dim3 dimBlock;
-    dimGrid.x = N / 1024;
-    dimGrid.y = N;
-    dimGrid.z = 1;
     dimBlock.x = 1024;
     dimBlock.y = 1;
     dimBlock.z = 1;
+    dimGrid.x = N;
+    dimGrid.y = (N + 1023) / 1024;
+    dimGrid.z = 1;
     // multiplyMatrixGPUByBlocksThreads1D<<<dimGrid, dimBlock>>>(N);
   }
   { 
     dim3 dimGrid;
     dim3 dimBlock;
-    dimGrid.x = N / 1024;
-    dimGrid.y = N;
-    dimGrid.z = 1;
     dimBlock.x = 1024;
     dimBlock.y = 1;
     dimBlock.z = 1;
+    dimGrid.x = N;
+    dimGrid.y = (N + 1023) / 1024;
+    dimGrid.z = 1;
     // multiplyMatrixGPUByBlocksThreads1DNonMultiple<<<dimGrid, dimBlock>>>(N);
   }
   {
     dim3 dimGrid;
     dim3 dimBlock;
-    dimGrid.x = N / 32;
-    dimGrid.y = N / 32;
-    dimGrid.z = 1;
     dimBlock.x = 32;
     dimBlock.y = 32;
     dimBlock.z = 1;
+    dimGrid.x = (N + 31) / 32;
+    dimGrid.y = (N + 31) / 32;
+    dimGrid.z = 1;
     // multiplyMatrixGPUByBlocksThreads2D<<<dimGrid, dimBlock>>>(N);
   }
   {
     dim3 dimGrid;
     dim3 dimBlock;
-    dimGrid.x = N / 32;
-    dimGrid.y = N / 32;
-    dimGrid.z = 1;
     dimBlock.x = 32;
     dimBlock.y = 32;
     dimBlock.z = 1;
+    dimGrid.x = (N + 31) / 32;
+    dimGrid.y = (N + 31) / 32;
+    dimGrid.z = 1;
     // multiplyMatrixGPUByBlocksThreads2DNonMultiple<<<dimGrid, dimBlock>>>(N);
   }
 
