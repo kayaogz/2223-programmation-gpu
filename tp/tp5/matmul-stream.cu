@@ -2,9 +2,10 @@
 #include <cuda.h>
 
 int N = 1024;
-int nStreams = 4;
+const int nStreams = 4;
 float *A, *B, *C;
 float *dA, *dB, *dC;
+cudaStream_t streams[nStreams];
 
 // Kernel that performs the matrix vector multiplication b(i) = sum_j(A(i, j), x(j))
 // A is row-major (stored row-by-row in memory)
@@ -36,6 +37,11 @@ int main()
 
   // Only copy the entire matrix A. For B and C, they need to be copied and computed one column vector at a time in a streaming manner
   cudaMemcpy(dA, A, N * N * sizeof(float), cudaMemcpyHostToDevice);
+
+  // Create streams
+  for (int i = 0; i < nStreams; i++) {
+    cudaStreamCreate(&streams[i]);
+  }
 
   // Compute the matrix-vector multiplication C(:, j) = A * B(:, j) column-by-column using nStreams streams
   for (int j = 0; j < N; j++) {
